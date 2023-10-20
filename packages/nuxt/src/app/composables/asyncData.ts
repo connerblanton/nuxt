@@ -49,6 +49,7 @@ export interface AsyncDataOptions<
   watch?: MultiWatchSources
   immediate?: boolean
   deep?: boolean
+  pendingDelay?: number
 }
 
 export interface AsyncDataExecuteOptions {
@@ -150,6 +151,7 @@ export function useAsyncData<
   options.lazy = options.lazy ?? false
   options.immediate = options.immediate ?? true
   options.deep = options.deep ?? asyncDataDefaults.deep
+  options.pendingDelay = options.pendingDelay ??  0
 
   const hasCachedData = () => ![null, undefined].includes(options.getCachedData!(key) as any)
 
@@ -182,8 +184,11 @@ export function useAsyncData<
     if ((opts._initial || (nuxt.isHydrating && opts._initial !== false)) && hasCachedData()) {
       return Promise.resolve(options.getCachedData!(key))
     }
-    asyncData.pending.value = true
-    asyncData.status.value = 'pending'
+
+    const delayPendingTimeout = setTimeout(() => {
+      asyncData.pending.value = true
+      asyncData.status.value = 'pending'
+    }, options.pendingDelay)
     // TODO: Cancel previous promise
     const promise = new Promise<ResT>(
       (resolve, reject) => {
@@ -219,6 +224,7 @@ export function useAsyncData<
       .finally(() => {
         if ((promise as any).cancelled) { return }
 
+        clearTimeout(delayPendingTimeout)
         asyncData.pending.value = false
         nuxt.payload.data[key] = asyncData.data.value
         if (asyncData.error.value) {
